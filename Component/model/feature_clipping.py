@@ -7,7 +7,7 @@ Performs feature clipping on model features before classification to improve cal
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from calibrator.Component.metrics import ECE
+from ..metrics import ECE
 
 
 class FeatureClippingCalibrator(nn.Module):
