@@ -4,8 +4,6 @@ from torch import nn
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 
-# --- 基础组件 (PreNorm, FeedForward, LSA, SPT 保持之前优化的逻辑) ---
-
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
@@ -112,20 +110,18 @@ class ViT_CIFAR_Base(nn.Module):
 
 class ViT_B_16_CIFAR(ViT_CIFAR_Base):
     def __init__(self, num_classes=10, **kwargs):
-        # 根据仓库：dim(dimhead)=512, depth=6, heads=8, mlp_dim=512
         super().__init__(
-            patch_size=4, dim=512, depth=6, heads=8, mlp_dim=512, num_classes=num_classes, **kwargs
+            patch_size=16, dim=512, depth=6, heads=8, mlp_dim=512, num_classes=num_classes, **kwargs
         )
 
 class ViT_B_32_CIFAR(ViT_CIFAR_Base):
     def __init__(self, num_classes=10, **kwargs):
         super().__init__(
-            patch_size=4, dim=512, depth=6, heads=8, mlp_dim=512, num_classes=num_classes, **kwargs
+            patch_size=32, dim=512, depth=6, heads=8, mlp_dim=512, num_classes=num_classes, **kwargs
         )
 
 class ViT_L_16_CIFAR(ViT_CIFAR_Base):
     def __init__(self, num_classes=10, **kwargs):
-        # Large 版稍微调大一点以作区分，但依然保持 depth=12 以适配 CIFAR
         super().__init__(
-            patch_size=4, dim=768, depth=12, heads=12, mlp_dim=1024, num_classes=num_classes, **kwargs
+            patch_size=16, dim=768, depth=12, heads=12, mlp_dim=1024, num_classes=num_classes, **kwargs
         )

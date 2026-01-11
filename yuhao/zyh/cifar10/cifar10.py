@@ -352,6 +352,20 @@ def save_metrics_to_csv(metrics, dataset, model, loss, seed, file_path='cifar10_
 
 
 def train_cifar10(args,data_root,seed,model_name,device):
+    save_dir = os.path.join(
+        str(args.save_loc), str(args.model_name), str(args.loss_function), f"seed_{seed}"
+    )
+    os.makedirs(save_dir, exist_ok=True)
+    files_exist = (os.path.exists(os.path.join(save_dir, "val_logits.npy")) and
+                   os.path.exists(os.path.join(save_dir, "val_labels.npy")) and
+                   os.path.exists(os.path.join(save_dir, "val_features.npy")) and
+                   os.path.exists(os.path.join(save_dir, "test_logits.npy")) and
+                   os.path.exists(os.path.join(save_dir, "test_labels.npy")) and
+                   os.path.exists(os.path.join(save_dir, "test_features.npy")))
+    if files_exist:
+        print("Jump: " + str(save_dir))
+        return
+
     train_loader, val_loader = cifar10_train_valid_loader(
         root=data_root,
         batch_size=128,
@@ -470,10 +484,6 @@ def train_cifar10(args,data_root,seed,model_name,device):
             torch.save(net.state_dict(), save_name)
         '''
 
-    save_dir = os.path.join(
-        str(args.save_loc), str(args.model_name), str(args.loss_function), f"seed_{seed}"
-    )
-    os.makedirs(save_dir, exist_ok=True)
 
     np.save(f"{save_dir}/val_logits.npy", best_val_logit)
     np.save(f"{save_dir}/val_labels.npy", best_val_label)

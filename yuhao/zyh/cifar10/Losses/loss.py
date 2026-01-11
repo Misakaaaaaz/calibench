@@ -10,7 +10,7 @@ Implementation of the following loss functions:
 from torch.nn import functional as F
 
 from Component import LabelSmoothingLoss, SoftECE, SmoothSoftECE
-from Component.metrics.dual_focal_foss import DualFocalLoss
+from Component.metrics.dual_focal_loss import DualFocalLoss
 from .focal_loss import FocalLoss
 from .focal_loss_adaptive_gamma import FocalLossAdaptive
 from .mmce import MMCE, MMCE_weighted
@@ -55,11 +55,13 @@ def dual_focal_loss(logits, targets, **kwargs):
 
 def soft_ece(logits, targets, **kwargs):
     ce = F.cross_entropy(logits, targets)
-    sece = SoftECE()(logits, targets)
+    ce_device = SoftECE().to(logits.device)
+    sece = ce_device(logits, targets)
     return ce + (kwargs['lamda'] * sece)
 
 
 def smooth_soft_ece(logits, targets, **kwargs):
     ce = F.cross_entropy(logits, targets)
-    ssece = SmoothSoftECE()(logits, targets)
+    ce_device = SmoothSoftECE().to(logits.device)
+    ssece = ce_device(logits, targets)
     return ce + (kwargs['lamda'] * ssece)

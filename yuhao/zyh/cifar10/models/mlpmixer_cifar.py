@@ -83,7 +83,7 @@ class MLPMixer_B16_CIFAR(MLPMixer_CIFAR):
         super(MLPMixer_B16_CIFAR, self).__init__(
             image_size=32,
             channels=3,
-            patch_size=4,
+            patch_size=16,
             dim=512,
             depth=6,
             num_classes=num_classes,
