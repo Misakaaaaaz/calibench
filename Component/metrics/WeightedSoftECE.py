@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from typing import Optional
 
 class WeightedSoftECE(nn.Module):
     """
@@ -18,7 +19,7 @@ class WeightedSoftECE(nn.Module):
             torch.linspace(1/(2*self.n_bins), 1 - 1/(2*self.n_bins), self.n_bins)
         )
 
-    def forward(self, logits, labels, sample_weights: torch.Tensor | None = None):
+    def forward(self, logits, labels, sample_weights: Optional[torch.Tensor] = None):
         """
         Args:
             logits: [B, C]

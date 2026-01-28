@@ -1,10 +1,3 @@
-"""
-Create train, valid, test iterators for CIFAR-10.
-Train set size: 45000
-Val set size: 5000
-Test set size: 10000
-"""
-
 import torch
 import numpy as np
 
@@ -21,29 +14,11 @@ def get_train_valid_loader(batch_size,
                            num_workers=4,
                            pin_memory=False,
                            get_val_temp=0,
-                           root='./data'):
+                           root='./data',
+                           resize=None):  # 新增 resize 参数
     """
     Utility function for loading and returning train and valid
-    multi-process iterators over the CIFAR-10 dataset. 
-    Params:
-    ------
-    - batch_size: how many samples per batch to load.
-    - augment: whether to apply the data augmentation scheme
-      mentioned in the paper. Only applied on the train split.
-    - random_seed: fix seed for reproducibility.
-    - valid_size: percentage split of the training set used for
-      the validation set. Should be a float in the range [0, 1].
-    - shuffle: whether to shuffle the train/validation indices.
-    - num_workers: number of subprocesses to use when loading the dataset.
-    - pin_memory: whether to copy tensors into CUDA pinned memory. Set it to
-      True if using GPU.
-    - get_val_temp: set to 1 if temperature is to be set on a separate
-                    val set other than normal val set.
-    - root: root directory where the dataset should be stored.
-    Returns
-    -------
-    - train_loader: training set iterator.
-    - valid_loader: validation set iterator.
+    multi-process iterators over the CIFAR-10 dataset.
     """
     error_msg = "[!] valid_size should be in the range [0, 1]."
     assert ((valid_size >= 0) and (valid_size <= 1)), error_msg
@@ -53,23 +28,37 @@ def get_train_valid_loader(batch_size,
         std=[0.2023, 0.1994, 0.2010],
     )
 
-    # define transforms
-    valid_transform = transforms.Compose([
+    # --- 1. 定义 Resize 变换 ---
+    # 如果指定了 resize，就创建一个 Resize 对象，否则为空列表
+    resize_transform = [transforms.Resize((resize, resize))] if resize else []
+
+    # --- 2. 定义 Validation Transforms ---
+    # 逻辑：Resize (可选) -> ToTensor -> Normalize
+    valid_transform = transforms.Compose(
+        resize_transform + [
             transforms.ToTensor(),
             normalize,
-    ])
+        ]
+    )
+
+    # --- 3. 定义 Train Transforms ---
     if augment:
+        # 逻辑：完全保留你原来的增强 (RandomCrop 32) -> Resize (可选) -> ToTensor -> Normalize
         train_transform = transforms.Compose([
             transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
+        ] + resize_transform + [
             transforms.ToTensor(),
             normalize,
         ])
     else:
-        train_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize,
-        ])
+        # 逻辑：Resize (可选) -> ToTensor -> Normalize
+        train_transform = transforms.Compose(
+            resize_transform + [
+                transforms.ToTensor(),
+                normalize,
+            ]
+        )
 
     # load the dataset
     train_dataset = datasets.CIFAR10(
@@ -91,6 +80,9 @@ def get_train_valid_loader(batch_size,
         np.random.shuffle(indices)
 
     train_idx, valid_idx = indices[split:], indices[:split]
+
+    # 处理额外的 temp validation set
+    valid_temp_loader = None
     if get_val_temp > 0:
         valid_temp_dataset = datasets.CIFAR10(
             root=root, train=True,
@@ -115,6 +107,7 @@ def get_train_valid_loader(batch_size,
         valid_dataset, batch_size=batch_size, sampler=valid_sampler,
         num_workers=num_workers, pin_memory=pin_memory,
     )
+
     if get_val_temp > 0:
         return (train_loader, valid_loader, valid_temp_loader)
     else:
@@ -125,33 +118,27 @@ def get_test_loader(batch_size,
                     shuffle=True,
                     num_workers=4,
                     pin_memory=False,
-                    root='./data'):
+                    root='./data',
+                    resize=None):  # 新增 resize 参数
     """
     Utility function for loading and returning a multi-process
     test iterator over the CIFAR-10 dataset.
-    If using CUDA, num_workers should be set to 1 and pin_memory to True.
-    Params
-    ------
-    - batch_size: how many samples per batch to load.
-    - shuffle: whether to shuffle the dataset after every epoch.
-    - num_workers: number of subprocesses to use when loading the dataset.
-    - pin_memory: whether to copy tensors into CUDA pinned memory. Set it to
-      True if using GPU.
-    - root: root directory where the dataset should be stored.
-    Returns
-    -------
-    - data_loader: test set iterator.
     """
     normalize = transforms.Normalize(
         mean=[0.4914, 0.4822, 0.4465],
         std=[0.2023, 0.1994, 0.2010],
     )
 
+    # --- 定义 Resize 变换 ---
+    resize_transform = [transforms.Resize((resize, resize))] if resize else []
+
     # define transform
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        normalize,
-    ])
+    transform = transforms.Compose(
+        resize_transform + [
+            transforms.ToTensor(),
+            normalize,
+        ]
+    )
 
     dataset = datasets.CIFAR10(
         root=root, train=False,

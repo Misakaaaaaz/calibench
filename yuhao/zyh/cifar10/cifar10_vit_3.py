@@ -1,8 +1,56 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+import sys
+
+import datetime
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+
+
+from collections import deque
+class TeeLogger(object):
+    def __init__(self, log_dir="logs", max_lines=2000):
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        time_str = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        pid = os.getpid()
+        self.filename = os.path.join(log_dir, f"train_{time_str}_pid{pid}.log")
+        self.log = open(self.filename, "w", buffering=1)
+        self.terminal = sys.stdout
+        self.max_lines = max_lines
+        self.lines_buffer = deque(maxlen=max_lines)
+        self.temp_buffer = ""
+
+        print(f"[Logger Init] Save logs to: {self.filename} (Keeping last {max_lines} lines)")
+
+    def write(self, message):
+        self.terminal.write(message)
+        self.temp_buffer += message
+
+        if '\n' in self.temp_buffer:
+
+            parts = self.temp_buffer.split('\n')
+            for part in parts[:-1]:
+                self.lines_buffer.append(part + '\n')
+            self.temp_buffer = parts[-1]
+            self._rewrite_file()
+
+    def _rewrite_file(self):
+        self.log.seek(0)
+        self.log.truncate()
+        self.log.writelines(self.lines_buffer)
+        self.log.write(self.temp_buffer)
+        self.log.flush()
+
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+sys.stdout = TeeLogger()
+sys.stderr = sys.stdout
+
 import argparse
 import json
-import os
+
 from typing import Optional, Dict
 import random
 import numpy as np
@@ -21,12 +69,16 @@ from torch import optim
 import torch.nn.functional as F
 from train_utils import train_single_epoch, test_single_epoch
 import logging
-
+from functools import partial
+from yuhao.zyh.cifar10.models.vit_cifar import ViT_B_16_CIFAR, ViT_B_32_CIFAR, ViT_L_16_CIFAR
 models={
     "resnet50": ResNet50_CIFAR,
     "resnet152": ResNet152_CIFAR,
     "densenet121": DenseNet121_CIFAR,
     "wide_resnet": WideResNet_CIFAR,
+    "vit_b_16": partial(ViT_B_16_CIFAR, image_size=224),
+    "vit_b_32": partial(ViT_B_32_CIFAR, image_size=224),
+    "vit_l_16": partial(ViT_L_16_CIFAR, image_size=224),
 }
 
 def set_seed(seed):
@@ -181,7 +233,7 @@ def loss_function_save_name(loss_function,
 
 def parseArgs():
     default_dataset = 'cifar10'
-    dataset_root = '/share/datasets'
+    dataset_root = '/ssd/data'
     train_batch_size = 128
     test_batch_size = 128
     learning_rate = 0.1
@@ -355,7 +407,6 @@ def train_cifar10(args,data_root,seed,model_name,device):
     save_dir = os.path.join(
         str(args.save_loc), str(args.model_name), str(args.loss_function), f"seed_{seed}"
     )
-    os.makedirs(save_dir, exist_ok=True)
     files_exist = (os.path.exists(os.path.join(save_dir, "val_logits.npy")) and
                    os.path.exists(os.path.join(save_dir, "val_labels.npy")) and
                    os.path.exists(os.path.join(save_dir, "val_features.npy")) and
@@ -365,19 +416,24 @@ def train_cifar10(args,data_root,seed,model_name,device):
     if files_exist:
         print("Jump: " + str(save_dir))
         return
+    resize=None
+    if args.model_name in ['vit_b_16','vit_b_32','vit_l_16']:
+        resize = 224
 
     train_loader, val_loader = cifar10_train_valid_loader(
         root=data_root,
-        batch_size=128,
+        batch_size=32,
         shuffle=True,
         random_seed=seed,
-        augment=True
+        augment=True,
+        resize=resize
     )
 
     test_loader = cifar10_test_loader(
         root=data_root,
-        batch_size=128,
-        shuffle=False
+        batch_size=32,
+        shuffle=False,
+        resize=resize
     )
 
     net = models[model_name](num_classes=10)
@@ -484,7 +540,7 @@ def train_cifar10(args,data_root,seed,model_name,device):
             torch.save(net.state_dict(), save_name)
         '''
 
-
+    os.makedirs(save_dir, exist_ok=True)
     np.save(f"{save_dir}/val_logits.npy", best_val_logit)
     np.save(f"{save_dir}/val_labels.npy", best_val_label)
     np.save(f"{save_dir}/val_features.npy", best_val_feature)
@@ -532,7 +588,7 @@ def main():
         ['vit_b_16','vit_b_32','vit_l_16','swin_b','beit_base', 'beit_large',  'convnext_tiny', 'convnext_base', 'convnext_large',
                   'eva02_small', 'eva02_base',  'mobilenet_v2', 'mlp_mixer_b16','eva02_large']:
         """
-        for model_name in ['resnet50','resnet152','densenet121','wide_resnet']:
+        for model_name in ["vit_l_16"]:
             origin = parseArgs()
             origin.model_name=model_name
 
@@ -546,6 +602,7 @@ def main():
 
             arg3 = copy.deepcopy(origin)
             arg3.loss_function = 'MMCE'
+            arg3.lamda = 2.0
             train_cifar10(arg3, arg3.dataset_root, seed, arg3.model_name, device)
 
             arg4 = copy.deepcopy(origin)
@@ -563,9 +620,17 @@ def main():
             train_cifar10(arg6, arg6.dataset_root, seed, arg6.model_name, device)
 
             arg7 = copy.deepcopy(origin)
-            arg7.loss_function = 'DFL'
-            train_cifar10(arg7, arg7.dataset_root, seed, arg7.model_name, device)
+            gammamap7 = {
+                "resnet_50": 5,
+                "wide_resnet": 2.6,
+                "densenet121": 5,
+            }
+            if arg7.model_name in gammamap7:
+                arg7.loss_function = 'DFL'
+                arg7.gamma = gammamap7.get(model_name, 5)
+                train_cifar10(arg7, arg7.dataset_root, seed, arg7.model_name, device)
 
+            """
             arg8 = copy.deepcopy(origin)
             arg8.loss_function = 'SoftECE'
             train_cifar10(arg8, arg8.dataset_root, seed, arg8.model_name, device)
@@ -573,6 +638,10 @@ def main():
             arg9 = copy.deepcopy(origin)
             arg9.loss_function = 'SmoothSoftECE'
             train_cifar10(arg9, arg9.dataset_root, seed, arg9.model_name, device)
+            """
+            arg10 = copy.deepcopy(origin)
+            arg10.loss_function = 'MSE'
+            train_cifar10(arg10, arg10.dataset_root, seed, arg10.model_name, device)
 
 if __name__ == "__main__":
     main()

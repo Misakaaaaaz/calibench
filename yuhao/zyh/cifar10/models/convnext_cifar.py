@@ -64,7 +64,7 @@ class ConvNeXt(nn.Module):
         head_init_scale (float): Init scaling value for classifier weights and biases. Default: 1.
     """
 
-    def __init__(self, in_chans=3, num_classes=1000,
+    def __init__(self, in_chans=3, num_classes=10,
                  depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], drop_path_rate=0.,
                  layer_scale_init_value=1e-6, head_init_scale=1.,
                  ):
@@ -72,7 +72,7 @@ class ConvNeXt(nn.Module):
 
         self.downsample_layers = nn.ModuleList()  # stem and 3 intermediate downsampling conv layers
         stem = nn.Sequential(
-            nn.Conv2d(in_chans, dims[0], kernel_size=4, stride=4),
+            nn.Conv2d(in_chans, dims[0], kernel_size=3, stride=1, padding=1),
             LayerNorm(dims[0], eps=1e-6, data_format="channels_first")
         )
         self.downsample_layers.append(stem)
@@ -149,30 +149,30 @@ class LayerNorm(nn.Module):
 
 
 @register_model
-def convnext_tiny(nb_cls, **kwargs):
-    model = ConvNeXt(num_classes=nb_cls, depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], **kwargs)
+def convnext_tiny(**kwargs):
+    model = ConvNeXt(depths=[3, 3, 9, 3], dims=[96, 192, 384, 768], **kwargs)
     return model
 
 
 @register_model
-def convnext_small(nb_cls, **kwargs):
-    model = ConvNeXt(num_classes=nb_cls, depths=[3, 3, 27, 3], dims=[96, 192, 384, 768], **kwargs)
+def convnext_small(**kwargs):
+    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[96, 192, 384, 768], **kwargs)
     return model
 
 
 @register_model
-def convnext_base(nb_cls, **kwargs):
-    model = ConvNeXt(num_classes=nb_cls, depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], **kwargs)
+def convnext_base( **kwargs):
+    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[128, 256, 512, 1024], **kwargs)
     return model
 
 
 @register_model
-def convnext_large(nb_cls, **kwargs):
-    model = ConvNeXt(num_classes=nb_cls, depths=[3, 3, 27, 3], dims=[192, 384, 768, 1536], **kwargs)
+def convnext_large(**kwargs):
+    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[192, 384, 768, 1536], **kwargs)
     return model
 
 
 @register_model
-def convnext_xlarge(nb_cls, **kwargs):
-    model = ConvNeXt(num_classes=nb_cls, depths=[3, 3, 27, 3], dims=[256, 512, 1024, 2048], **kwargs)
+def convnext_xlarge(**kwargs):
+    model = ConvNeXt(depths=[3, 3, 27, 3], dims=[256, 512, 1024, 2048], **kwargs)
     return model

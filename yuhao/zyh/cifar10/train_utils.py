@@ -8,24 +8,24 @@ from torch.nn import functional as F
 from torch import nn
 
 from Losses.loss import cross_entropy, focal_loss, focal_loss_adaptive, label_smoothing, soft_ece, smooth_soft_ece, \
-    dual_focal_loss
+    dual_focal_loss, mse_loss
 from Losses.loss import mmce, mmce_weighted
 from Losses.loss import brier_score
 
-mean_reduction_losses = ['MMCE', 'SoftECE', 'SmoothSoftECE', 'LS-0.05']
+mean_reduction_losses = ['MMCE', 'SoftECE', 'SmoothSoftECE', 'LS-0.05',"MSE"]
 
 loss_function_dict = {
     'NLL': cross_entropy,
     'FLSD-3': focal_loss,
     'FLSD-53': focal_loss_adaptive,
-    'MMCE': mmce,
+    'MMCE': mmce_weighted,
     'mmce_weighted': mmce_weighted,
     'Brier': brier_score,
     'LS-0.05': label_smoothing,
     'SoftECE': soft_ece,
     'SmoothSoftECE': smooth_soft_ece,
-    'DFL':dual_focal_loss
-
+    'DFL':dual_focal_loss,
+    "MSE": mse_loss
 }
 
 

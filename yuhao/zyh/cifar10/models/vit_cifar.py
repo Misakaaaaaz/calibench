@@ -111,17 +111,17 @@ class ViT_CIFAR_Base(nn.Module):
 class ViT_B_16_CIFAR(ViT_CIFAR_Base):
     def __init__(self, num_classes=10, **kwargs):
         super().__init__(
-            patch_size=16, dim=512, depth=6, heads=8, mlp_dim=512, num_classes=num_classes, **kwargs
+            patch_size=16, dim=768, depth=12, heads=12, mlp_dim=3072, num_classes=num_classes, **kwargs
         )
 
 class ViT_B_32_CIFAR(ViT_CIFAR_Base):
     def __init__(self, num_classes=10, **kwargs):
         super().__init__(
-            patch_size=32, dim=512, depth=6, heads=8, mlp_dim=512, num_classes=num_classes, **kwargs
+            patch_size=32, dim=768, depth=12, heads=12, mlp_dim=3072, num_classes=num_classes, **kwargs
         )
 
 class ViT_L_16_CIFAR(ViT_CIFAR_Base):
     def __init__(self, num_classes=10, **kwargs):
         super().__init__(
-            patch_size=16, dim=768, depth=12, heads=12, mlp_dim=1024, num_classes=num_classes, **kwargs
+            patch_size=16, dim=1024, depth=24, heads=16, mlp_dim=4096, num_classes=num_classes, **kwargs
         )
