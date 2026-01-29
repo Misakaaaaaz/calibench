@@ -11,12 +11,9 @@ class EVA02_CIFAR10_Base(nn.Module):
     def __init__(self, model_name='eva02_base_patch14_448.mim_in22k_ft_in1k', pretrained=True, **kwargs):
         super(EVA02_CIFAR10_Base, self).__init__()
 
-        # 核心逻辑：创建模型并直接修改 num_classes
-        # timm 会自动处理 head 的替换
         self.model = timm.create_model(
             model_name,
             pretrained=pretrained,
-            num_classes=10,  # 适配 CIFAR-10
             **kwargs
         )
 
