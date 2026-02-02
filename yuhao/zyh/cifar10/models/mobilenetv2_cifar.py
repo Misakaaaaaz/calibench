@@ -27,6 +27,7 @@ class MobileNet_V2_CIFAR10(nn.Module):
             return logits, features
         return logits
 
+
 '''
 https://github.com/weiaicunzai/pytorch-cifar100
 import torch
@@ -34,7 +35,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class LinearBottleNeck(nn.Module):
-    def __init__(self, in_channels, out_channels, stride, t=6, class_num=10):
+    def __init__(self, in_channels, out_channels, stride, t=6, class_num=100):
         super().__init__()
         self.residual = nn.Sequential(
             nn.Conv2d(in_channels, in_channels * t, 1),
@@ -57,10 +58,11 @@ class LinearBottleNeck(nn.Module):
         return residual
 
 class MobileNetV2(nn.Module):
-    def __init__(self, class_num=10):
+    def __init__(self, class_num=100):
         super().__init__()
+        # 注意：这里的 Conv2d 建议根据 CIFAR 特点将 kernel 改为 3
         self.pre = nn.Sequential(
-            nn.Conv2d(3, 32, 3, padding=1),
+            nn.Conv2d(3, 32, 3, padding=1), # 改为 kernel=3 对 32x32 效果更好
             nn.BatchNorm2d(32),
             nn.ReLU6(inplace=True)
         )
@@ -92,12 +94,12 @@ class MobileNetV2(nn.Module):
         x = self.stage6(x)
         x = self.stage7(x)
         x = self.conv1(x)
-        
-       
+
+
         x = F.adaptive_avg_pool2d(x, 1)
 
         features = x.view(x.size(0), -1) 
-      
+
         x = self.conv2(x)
         logits = x.view(x.size(0), -1)
 
