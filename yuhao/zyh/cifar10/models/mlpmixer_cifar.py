@@ -3,6 +3,7 @@ from torch import nn
 from functools import partial
 from einops.layers.torch import Rearrange, Reduce
 
+"""
 # 基础组件
 pair = lambda x: x if isinstance(x, tuple) else (x, x)
 
@@ -83,9 +84,57 @@ class MLPMixer_B16_CIFAR(MLPMixer_CIFAR):
         super(MLPMixer_B16_CIFAR, self).__init__(
             image_size=32,
             channels=3,
-            patch_size=16,
+            patch_size=4,
             dim=512,
             depth=6,
             num_classes=num_classes,
             **kwargs
         )
+"""
+
+import torch
+import torch.nn as nn
+import timm
+
+
+class MLPMixer_B16_CIFAR(nn.Module):
+    """
+    MLP-Mixer-B/16 trained from scratch.
+    Input resolution: 224x224 (CIFAR should be resized).
+    """
+
+    def __init__(self, num_classes=10):
+        super(MLPMixer_B16_CIFAR, self).__init__()
+
+        self.model = timm.create_model(
+            'mixer_b16_224',
+            pretrained=False,
+            num_classes=num_classes
+        )
+
+        self.feature_dim = self.model.head.in_features
+
+    def forward(self, x, return_features=False):
+        """
+        Args:
+            x: Tensor [B, 3, 224, 224]
+            return_features: bool
+
+        Returns:
+            logits or (logits, features)
+        """
+
+        tokens = self.model.forward_features(x)
+        features = self.model.forward_head(tokens, pre_logits=True)
+        logits = self.model.head(features)
+
+        if return_features:
+            return logits, features
+
+        return logits
+
+    def classifier(self, x):
+        """
+        Compatibility with existing calibration code.
+        """
+        return self.model.head(x)
