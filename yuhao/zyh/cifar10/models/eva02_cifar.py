@@ -39,7 +39,7 @@ class EVA02_Base_CIFAR10(EVA02_CIFAR10_Base):
 
 class EVA02_Large_CIFAR10(EVA02_CIFAR10_Base):
     def __init__(self, **kwargs):
-        super().__init__(model_name='eva02_large_patch14_448.mim_m38m_ft_in1k', **kwargs)
+        super().__init__(model_name='eva02_large_patch14_224.mim_m38m', **kwargs)
 
 
 class EVA02_Small_CIFAR10(EVA02_CIFAR10_Base):
