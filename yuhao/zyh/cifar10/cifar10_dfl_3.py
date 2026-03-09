@@ -5,7 +5,7 @@ import datetime
 
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 from yuhao.zyh.cifar10.models.beit_cifar import BEiT_Base_CIFAR
 from yuhao.zyh.cifar10.models.convnext_cifar import *
 from yuhao.zyh.cifar10.models.mobilenetv2_cifar import MobileNet_V2_CIFAR10
@@ -597,7 +597,7 @@ def train_cifar10(args,data_root,seed,model_name,device):
 
     train_loader, val_loader = cifar10_train_valid_loader(
         root=data_root,
-        batch_size=64,
+        batch_size=256,
         shuffle=True,
         random_seed=seed,
         augment=True,
@@ -606,7 +606,7 @@ def train_cifar10(args,data_root,seed,model_name,device):
 
     test_loader = cifar10_test_loader(
         root=data_root,
-        batch_size=64,
+        batch_size=256,
         shuffle=False,
         resize=resize
     )
@@ -855,7 +855,7 @@ def main():
         ['vit_b_16','vit_b_32','vit_l_16','swin_b','beit_base', 'beit_large',  'convnext_tiny', 'convnext_base', 'convnext_large',
                   'eva02_small', 'eva02_base',  'mobilenet_v2', 'mlp_mixer_b16','eva02_large']:
         """
-        for model_name in ['beit_base','swin_b']:
+        for model_name in ['convnext_large']:
             origin = parseArgs()
             origin.model_name=model_name
 

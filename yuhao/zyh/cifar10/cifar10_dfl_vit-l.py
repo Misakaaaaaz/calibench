@@ -5,7 +5,7 @@ import datetime
 
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 from yuhao.zyh.cifar10.models.beit_cifar import BEiT_Base_CIFAR
 from yuhao.zyh.cifar10.models.convnext_cifar import *
 from yuhao.zyh.cifar10.models.mobilenetv2_cifar import MobileNet_V2_CIFAR10
@@ -431,7 +431,7 @@ def _build_model_optimizer_scheduler(args, model_name, device):
     net = models[model_name](num_classes=10)
     net = net.to(device)
     net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
-    cudnn.benchmark = True
+    cudnn.benchmark = False
 
     optimizer = optim.SGD(
         net.parameters(),
@@ -490,7 +490,7 @@ def _train_eval_for_gamma(
     net = models[model_name](num_classes=10)
     net = net.to(device)
     net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
-    torch.backends.cudnn.benchmark = True
+    torch.backends.cudnn.benchmark = False
 
     optimizer = optim.SGD(
         net.parameters(),
@@ -597,7 +597,7 @@ def train_cifar10(args,data_root,seed,model_name,device):
 
     train_loader, val_loader = cifar10_train_valid_loader(
         root=data_root,
-        batch_size=64,
+        batch_size=32,
         shuffle=True,
         random_seed=seed,
         augment=True,
@@ -606,7 +606,7 @@ def train_cifar10(args,data_root,seed,model_name,device):
 
     test_loader = cifar10_test_loader(
         root=data_root,
-        batch_size=64,
+        batch_size=32,
         shuffle=False,
         resize=resize
     )
@@ -855,11 +855,11 @@ def main():
         ['vit_b_16','vit_b_32','vit_l_16','swin_b','beit_base', 'beit_large',  'convnext_tiny', 'convnext_base', 'convnext_large',
                   'eva02_small', 'eva02_base',  'mobilenet_v2', 'mlp_mixer_b16','eva02_large']:
         """
-        for model_name in ['beit_base','swin_b']:
+        for model_name in ['vit_l_16']:
             origin = parseArgs()
             origin.model_name=model_name
 
-            """
+
             arg1 = copy.deepcopy(origin)
             arg1.loss_function = 'NLL'
             train_cifar10(arg1,arg1.dataset_root,seed,arg1.model_name, device)
@@ -886,7 +886,10 @@ def main():
             arg6.loss_function = 'FLSD-3'
             arg6.gamma = 3.0
             train_cifar10(arg6, arg6.dataset_root, seed, arg6.model_name, device)
-            """
+
+            arg10 = copy.deepcopy(origin)
+            arg10.loss_function = 'MSE'
+            train_cifar10(arg10, arg10.dataset_root, seed, arg10.model_name, device)
 
             arg7 = copy.deepcopy(origin)
             gammamap7 = {
@@ -911,11 +914,9 @@ def main():
             train_cifar10(arg9, arg9.dataset_root, seed, arg9.model_name, device)
             """
 
-            """
-            arg10 = copy.deepcopy(origin)
-            arg10.loss_function = 'MSE'
-            train_cifar10(arg10, arg10.dataset_root, seed, arg10.model_name, device)
-            """
+
+
+
 
 if __name__ == "__main__":
     main()

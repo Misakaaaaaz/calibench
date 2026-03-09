@@ -6,12 +6,8 @@ import datetime
 
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-from yuhao.zyh.cifar10.models.beit_cifar import BEiT_Base_CIFAR
-from yuhao.zyh.cifar10.models.convnext_cifar import *
-from yuhao.zyh.cifar10.models.mobilenetv2_cifar import MobileNet_V2_CIFAR10
 from yuhao.zyh.cifar10.models.eva02_cifar import EVA02_Base_CIFAR10, EVA02_Small_CIFAR10, EVA02_Large_CIFAR10
-from yuhao.zyh.cifar10.models.swin_cifar import swin_b
-from yuhao.zyh.cifar10.models.mlpmixer_cifar import MLPMixer_B16_CIFAR
+
 from collections import deque
 class TeeLogger(object):
     def __init__(self, log_dir="logs", max_lines=2000):
@@ -87,16 +83,7 @@ models={
     "vit_l_16": partial(ViT_L_16_CIFAR, image_size=224),
     "eva02_base": EVA02_Base_CIFAR10,
     "eva02_small": EVA02_Small_CIFAR10,
-    "eva02_large": EVA02_Large_CIFAR10,
-    "swin_b": swin_b,
-    "mlp_mixer_b16": MLPMixer_B16_CIFAR,
-    'mobilenet_v2': MobileNet_V2_CIFAR10,
-    'beit_base': BEiT_Base_CIFAR,
-    "convnext_tiny": convnext_tiny,
-    "convnext_small": convnext_small,
-    "convnext_base": convnext_base,
-    "convnext_large": convnext_large,
-
+    "eva02_large": EVA02_Large_CIFAR10
 }
 
 def set_seed(seed):
@@ -420,159 +407,6 @@ def save_metrics_to_csv(metrics, dataset, model, loss, seed, file_path='cifar10_
 
     print(f"Results saved to {file_path}")
 
-def _extract_ece(metrics: dict):
-    ece = metrics.get('ece', None)
-    if ece is None:
-        raise ValueError(f"ECE not found in metrics: {metrics}")
-    return float(ece)
-
-
-def _build_model_optimizer_scheduler(args, model_name, device):
-    net = models[model_name](num_classes=10)
-    net = net.to(device)
-    net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
-    cudnn.benchmark = True
-
-    optimizer = optim.SGD(
-        net.parameters(),
-        lr=0.1,
-        momentum=0.9,
-        weight_decay=5e-4,
-        nesterov=False
-    )
-    scheduler = optim.lr_scheduler.MultiStepLR(
-        optimizer,
-        milestones=[150, 250],
-        gamma=0.1
-    )
-    return net, optimizer, scheduler
-
-def _gamma_result_path(dataset, model_name, seed, stage_name, gamma):
-    cache_dir = "./gamma_search_cache"
-    os.makedirs(cache_dir, exist_ok=True)
-
-    gamma_str = f"{float(gamma):.4f}"
-    path = os.path.join(
-        cache_dir,
-        dataset,
-        model_name,
-        f"seed_{seed}"
-    )
-    os.makedirs(path, exist_ok=True)
-
-    return os.path.join(path, f"{stage_name}_gamma_{gamma_str}.json")
-
-
-def _train_eval_for_gamma(
-    args,
-    dataset,
-    stage_name,
-    model_name,
-    seed,
-    device,
-    train_loader,
-    eval_loader,
-    gamma,
-    num_epochs
-):
-    result_path = _gamma_result_path(
-        dataset, model_name, seed, stage_name, gamma
-    )
-
-    # ---------- 如果已经跑过，直接跳过 ----------
-    if os.path.exists(result_path):
-        with open(result_path, "r") as f:
-            obj = json.load(f)
-        print(f"[SKIP] {stage_name} gamma={gamma:.4f} already done")
-        return float(obj["ece"]), float(obj["acc"])
-
-    # ---------- 否则从头跑 50 epoch ----------
-    net = models[model_name](num_classes=10)
-    net = net.to(device)
-    net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
-    torch.backends.cudnn.benchmark = True
-
-    optimizer = optim.SGD(
-        net.parameters(),
-        lr=0.1,
-        momentum=0.9,
-        weight_decay=5e-4
-    )
-    scheduler = optim.lr_scheduler.MultiStepLR(
-        optimizer, milestones=[150, 250], gamma=0.1
-    )
-
-    for epoch in range(num_epochs):
-        train_single_epoch(
-            epoch,
-            net,
-            train_loader,
-            optimizer,
-            device,
-            loss_function=args.loss_function,
-            gamma=gamma,
-            lamda=args.lamda,
-            loss_mean=args.loss_mean
-        )
-        scheduler.step()
-
-    # ---------- eval ----------
-    _, logits, _, labels = test_single_epoch(
-        epoch=num_epochs,
-        model=net,
-        test_val_loader=eval_loader,
-        device=device,
-        loss_function=args.loss_function,
-        gamma=gamma,
-        lamda=args.lamda
-    )
-
-    logits = torch.tensor(logits, dtype=torch.float32, device=device)
-    labels = torch.tensor(labels, dtype=torch.long, device=device)
-
-    metrics = get_all_metrics(
-        device=device,
-        logits=logits,
-        labels=labels,
-        n_bins=15
-    )
-    ece = float(metrics["ece"])
-
-    _, acc, _, _, _ = test_classification_net(net, eval_loader, device)
-
-    # ---------- 写 result.json ----------
-    with open(result_path, "w") as f:
-        json.dump(
-            {
-                "dataset": dataset,
-                "model": model_name,
-                "seed": seed,
-                "stage": stage_name,
-                "gamma": float(gamma),
-                "num_epochs": num_epochs,
-                "ece": ece,
-                "acc": acc,
-                "eval_split": args.gamma_search_eval_split
-            },
-            f,
-            indent=2
-        )
-
-    del net, optimizer, scheduler, logits, labels
-    torch.cuda.empty_cache()
-
-    return ece, float(acc)
-
-
-
-def _frange(start, end, step):
-    vals = []
-    x = start
-    while x <= end + 1e-9:
-        vals.append(round(x, 4))
-        x += step
-    return vals
-
 
 def train_cifar10(args,data_root,seed,model_name,device):
     save_dir = os.path.join(
@@ -588,7 +422,7 @@ def train_cifar10(args,data_root,seed,model_name,device):
         print("Jump: " + str(save_dir))
         return
     resize=None
-    if args.model_name in ['vit_b_16','vit_b_32','vit_l_16',"swin_b","mlp_mixer_b16",'beit_base']:
+    if args.model_name in ['vit_b_16','vit_b_32','vit_l_16']:
         resize = 224
     if args.model_name in ['eva02_small']:
         resize = 336
@@ -611,85 +445,11 @@ def train_cifar10(args,data_root,seed,model_name,device):
         resize=resize
     )
 
-    # ============================================================
-    # DFL γ two-stage search
-    # ============================================================
-    if args.loss_function == 'DFL' and getattr(args, 'enable_gamma_search', False):
-
-        search_epochs = args.gamma_search_epochs
-        eval_loader = val_loader if args.gamma_search_eval_split == 'val' else test_loader
-
-        # ---------------- Stage 1 ----------------
-        print("\n[Stage 1] γ ∈ [2, 10], step=1.0")
-        stage1_results = []
-
-        for gamma in range(2, 11):
-            ece, acc = _train_eval_for_gamma(
-                args=args,
-                dataset="cifar10",
-                stage_name="stage1",
-                model_name=model_name,
-                seed=seed,
-                device=device,
-                train_loader=train_loader,
-                eval_loader=eval_loader,
-                gamma=float(gamma),
-                num_epochs=search_epochs
-            )
-
-            stage1_results.append({
-                'gamma': float(gamma),
-                'ece': ece,
-                'acc': acc
-            })
-            print(f"γ={gamma:.1f} | ECE={ece:.6f} | Acc={acc:.6f}")
-
-        stage1_sorted = sorted(stage1_results, key=lambda x: x['ece'])
-        best = stage1_sorted[0]
-        second = stage1_sorted[1]
-
-        if best['acc'] >= second['acc'] - 0.01:
-            center_gamma = best['gamma']
-        else:
-            center_gamma = second['gamma']
-
-        print(f"[Stage 1 Selected γ] {center_gamma:.2f}")
-
-        # ---------------- Stage 2 ----------------
-        print("\n[Stage 2] γ ± 0.5, step=0.1")
-        stage2_results = []
-
-        for gamma in _frange(center_gamma - 0.5, center_gamma + 0.5, 0.1):
-            ece, acc = _train_eval_for_gamma(
-                args=args,
-                dataset="cifar10",
-                stage_name="stage2",
-                model_name=model_name,
-                seed=seed,
-                device=device,
-                train_loader=train_loader,
-                eval_loader=eval_loader,
-                gamma=gamma,
-                num_epochs=search_epochs
-            )
-
-            stage2_results.append({
-                'gamma': gamma,
-                'ece': ece,
-                'acc': acc
-            })
-            print(f"γ={gamma:.2f} | ECE={ece:.6f} | Acc={acc:.6f}")
-
-        best_stage2 = min(stage2_results, key=lambda x: x['ece'])
-        args.gamma = best_stage2['gamma']
-
-        print(f"\n[Final γ Selected] γ={args.gamma:.3f}")
-        print("=" * 80)
-
     net = models[model_name](num_classes=10)
+
     net.cuda()
     net = torch.nn.DataParallel(net, device_ids=range(torch.cuda.device_count()))
-    cudnn.benchmark = False
+    cudnn.benchmark = True
 
     start_epoch = 0
     num_epochs = 350
@@ -805,24 +565,6 @@ def train_cifar10(args,data_root,seed,model_name,device):
 
     print(f"[SAVE] {args.model_name} | seed={seed} | {args.loss_function}")
 
-    # 仅在 DFL 且启用 gamma search 时记录 best gamma
-    if args.loss_function == "DFL" and getattr(args, "enable_gamma_search", False):
-        gamma_log_file = "dfl_best_gamma.csv"
-        write_header = not os.path.exists(gamma_log_file)
-
-        with open(gamma_log_file, "a") as f:
-            if write_header:
-                f.write("dataset,model,seed,gamma,eval_split,search_epochs\n")
-
-            f.write(
-                f"cifar10,"
-                f"{model_name},"
-                f"{seed},"
-                f"{args.gamma:.6f},"
-                f"{args.gamma_search_eval_split},"
-                f"{args.gamma_search_epochs}\n"
-            )
-
     val_logits_tensor = torch.tensor(best_val_logit, dtype=torch.float32)
     val_labels_tensor = torch.tensor(best_val_label, dtype=torch.long)
     val_features_tensor = torch.tensor(best_val_feature, dtype=torch.float32)
@@ -855,11 +597,10 @@ def main():
         ['vit_b_16','vit_b_32','vit_l_16','swin_b','beit_base', 'beit_large',  'convnext_tiny', 'convnext_base', 'convnext_large',
                   'eva02_small', 'eva02_base',  'mobilenet_v2', 'mlp_mixer_b16','eva02_large']:
         """
-        for model_name in ['beit_base','swin_b']:
+        for model_name in ["vit_l_16"]:
             origin = parseArgs()
             origin.model_name=model_name
 
-            """
             arg1 = copy.deepcopy(origin)
             arg1.loss_function = 'NLL'
             train_cifar10(arg1,arg1.dataset_root,seed,arg1.model_name, device)
@@ -886,7 +627,6 @@ def main():
             arg6.loss_function = 'FLSD-3'
             arg6.gamma = 3.0
             train_cifar10(arg6, arg6.dataset_root, seed, arg6.model_name, device)
-            """
 
             arg7 = copy.deepcopy(origin)
             gammamap7 = {
@@ -894,12 +634,10 @@ def main():
                 "wide_resnet": 2.6,
                 "densenet121": 5,
             }
-            arg7.loss_function = 'DFL'
-            arg7.gamma = gammamap7.get(model_name, 5)
-            arg7.enable_gamma_search = True
-            arg7.gamma_search_epochs = 50
-            arg7.gamma_search_eval_split = 'test'
-            train_cifar10(arg7, arg7.dataset_root, seed, arg7.model_name, device)
+            if arg7.model_name in gammamap7:
+                arg7.loss_function = 'DFL'
+                arg7.gamma = gammamap7.get(model_name, 5)
+                train_cifar10(arg7, arg7.dataset_root, seed, arg7.model_name, device)
 
             """
             arg8 = copy.deepcopy(origin)
@@ -910,12 +648,9 @@ def main():
             arg9.loss_function = 'SmoothSoftECE'
             train_cifar10(arg9, arg9.dataset_root, seed, arg9.model_name, device)
             """
-
-            """
             arg10 = copy.deepcopy(origin)
             arg10.loss_function = 'MSE'
             train_cifar10(arg10, arg10.dataset_root, seed, arg10.model_name, device)
-            """
 
 if __name__ == "__main__":
     main()
